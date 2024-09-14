@@ -14,7 +14,9 @@ import UIKit
     var listViewDidScrollCallback: ((UIScrollView) -> ())?
     private var isHeaderRefreshed: Bool = false
     deinit {
-        listViewDidScrollCallback = nil
+        MainActor.assumeIsolated {
+            listViewDidScrollCallback = nil
+        }
     }
 
     override init(frame: CGRect) {

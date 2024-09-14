@@ -23,6 +23,7 @@ public enum JXSegmentedViewItemSelectedType {
     case scroll
 }
 
+@MainActor
 public protocol JXSegmentedViewListContainer {
     var defaultSelectedIndex: Int { set get }
     func contentScrollView() -> UIScrollView
@@ -30,6 +31,7 @@ public protocol JXSegmentedViewListContainer {
     func didClickSelectedItem(at index: Int)
 }
 
+@MainActor
 public protocol JXSegmentedViewDataSource: AnyObject {
     var isItemWidthZoomEnabled: Bool { get }
     var selectedAnimationDuration: TimeInterval { get }
@@ -97,6 +99,7 @@ public protocol JXSegmentedViewDataSource: AnyObject {
 }
 
 /// 为什么会把选中代理分为三个，因为有时候只关心点击选中的，有时候只关心滚动选中的，有时候只关心选中。所以具体情况，使用对应方法。
+@MainActor
 public protocol JXSegmentedViewDelegate: AnyObject {
     /// 点击选中或者滚动选中都会调用该方法。适用于只关心选中事件，而不关心具体是点击还是滚动选中的情况。
     ///
@@ -419,92 +422,94 @@ open class JXSegmentedView: UIView, JXSegmentedViewRTLCompatible {
     open override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if keyPath == "contentOffset" {
             let contentOffset = change?[NSKeyValueChangeKey.newKey] as! CGPoint
-            if contentScrollView?.isTracking == true || contentScrollView?.isDecelerating == true {
-                //用户滚动引起的contentOffset变化，才处理。
-                if contentScrollView?.bounds.size.width == 0 {
-                    // 如果contentScrollView Frame为零，直接忽略
-                    return
-                }
-                var progress = contentOffset.x/contentScrollView!.bounds.size.width
-                if Int(progress) > itemDataSource.count - 1 || progress < 0 {
-                    //超过了边界，不需要处理
-                    return
-                }
-                if contentOffset.x == 0 && selectedIndex == 0 && lastContentOffset.x == 0 {
-                    //滚动到了最左边，且已经选中了第一个，且之前的contentOffset.x为0
-                    return
-                }
-                let maxContentOffsetX = contentScrollView!.contentSize.width - contentScrollView!.bounds.size.width
-                if contentOffset.x == maxContentOffsetX && selectedIndex == itemDataSource.count - 1 && lastContentOffset.x == maxContentOffsetX {
-                    //滚动到了最右边，且已经选中了最后一个，且之前的contentOffset.x为maxContentOffsetX
-                    return
-                }
-
-                progress = max(0, min(CGFloat(itemDataSource.count - 1), progress))
-                let baseIndex = Int(floor(progress))
-                let remainderProgress = progress - CGFloat(baseIndex)
-
-                let leftItemFrame = getItemFrameAt(index: baseIndex)
-                let rightItemFrame = getItemFrameAt(index: baseIndex + 1)
-                var rightItemContentWidth: CGFloat = 0
-                if baseIndex + 1 < itemDataSource.count {
-                    rightItemContentWidth = dataSource?.segmentedView(self, widthForItemContentAt: baseIndex + 1) ?? 0
-                }
-                let indicatorParams = JXSegmentedIndicatorTransitionParams(currentSelectedIndex: selectedIndex,
-                                                                           leftIndex: baseIndex,
-                                                                           leftItemFrame: leftItemFrame,
-                                                                           leftItemContentWidth: dataSource?.segmentedView(self, widthForItemContentAt: baseIndex) ?? 0,
-                                                                           rightIndex: baseIndex + 1,
-                                                                           rightItemFrame: rightItemFrame,
-                                                                           rightItemContentWidth: rightItemContentWidth,
-                                                                           percent: remainderProgress)
-
-                if remainderProgress == 0 {
-                    //滑动翻页，需要更新选中状态
-                    //滑动一小段距离，然后放开回到原位，contentOffset同样的值会回调多次。例如在index为1的情况，滑动放开回到原位，contentOffset会多次回调CGPoint(width, 0)
-                    if !(lastContentOffset.x == contentOffset.x && selectedIndex == baseIndex) {
-                        scrollSelectItemAt(index: baseIndex)
+            MainActor.assumeIsolated {
+                if contentScrollView?.isTracking == true || contentScrollView?.isDecelerating == true {
+                    //用户滚动引起的contentOffset变化，才处理。
+                    if contentScrollView?.bounds.size.width == 0 {
+                        // 如果contentScrollView Frame为零，直接忽略
+                        return
                     }
-                }else {
-                    //快速滑动翻页，当remainderRatio没有变成0，但是已经翻页了，需要通过下面的判断，触发选中
-                    if abs(progress - CGFloat(selectedIndex)) > 1 {
-                        var targetIndex = baseIndex
-                        if progress < CGFloat(selectedIndex) {
-                            targetIndex = baseIndex + 1
+                    var progress = contentOffset.x/contentScrollView!.bounds.size.width
+                    if Int(progress) > itemDataSource.count - 1 || progress < 0 {
+                        //超过了边界，不需要处理
+                        return
+                    }
+                    if contentOffset.x == 0 && selectedIndex == 0 && lastContentOffset.x == 0 {
+                        //滚动到了最左边，且已经选中了第一个，且之前的contentOffset.x为0
+                        return
+                    }
+                    let maxContentOffsetX = contentScrollView!.contentSize.width - contentScrollView!.bounds.size.width
+                    if contentOffset.x == maxContentOffsetX && selectedIndex == itemDataSource.count - 1 && lastContentOffset.x == maxContentOffsetX {
+                        //滚动到了最右边，且已经选中了最后一个，且之前的contentOffset.x为maxContentOffsetX
+                        return
+                    }
+
+                    progress = max(0, min(CGFloat(itemDataSource.count - 1), progress))
+                    let baseIndex = Int(floor(progress))
+                    let remainderProgress = progress - CGFloat(baseIndex)
+
+                    let leftItemFrame = getItemFrameAt(index: baseIndex)
+                    let rightItemFrame = getItemFrameAt(index: baseIndex + 1)
+                    var rightItemContentWidth: CGFloat = 0
+                    if baseIndex + 1 < itemDataSource.count {
+                        rightItemContentWidth = dataSource?.segmentedView(self, widthForItemContentAt: baseIndex + 1) ?? 0
+                    }
+                    let indicatorParams = JXSegmentedIndicatorTransitionParams(currentSelectedIndex: selectedIndex,
+                                                                               leftIndex: baseIndex,
+                                                                               leftItemFrame: leftItemFrame,
+                                                                               leftItemContentWidth: dataSource?.segmentedView(self, widthForItemContentAt: baseIndex) ?? 0,
+                                                                               rightIndex: baseIndex + 1,
+                                                                               rightItemFrame: rightItemFrame,
+                                                                               rightItemContentWidth: rightItemContentWidth,
+                                                                               percent: remainderProgress)
+
+                    if remainderProgress == 0 {
+                        //滑动翻页，需要更新选中状态
+                        //滑动一小段距离，然后放开回到原位，contentOffset同样的值会回调多次。例如在index为1的情况，滑动放开回到原位，contentOffset会多次回调CGPoint(width, 0)
+                        if !(lastContentOffset.x == contentOffset.x && selectedIndex == baseIndex) {
+                            scrollSelectItemAt(index: baseIndex)
                         }
-                        scrollSelectItemAt(index: targetIndex)
-                    }
-                    if selectedIndex == baseIndex {
-                        scrollingTargetIndex = baseIndex + 1
                     }else {
-                        scrollingTargetIndex = baseIndex
-                    }
-
-                    dataSource?.refreshItemModel(self, leftItemModel: itemDataSource[baseIndex], rightItemModel: itemDataSource[baseIndex + 1], percent: remainderProgress)
-
-                    for indicator in indicators {
-                        indicator.contentScrollViewDidScroll(model: indicatorParams)
-                        if indicator.isIndicatorConvertToItemFrameEnabled {
-                            var leftIndicatorConvertToItemFrame = indicator.frame
-                            leftIndicatorConvertToItemFrame.origin.x -= leftItemFrame.origin.x
-                            itemDataSource[baseIndex].indicatorConvertToItemFrame = leftIndicatorConvertToItemFrame
-
-                            var rightIndicatorConvertToItemFrame = indicator.frame
-                            rightIndicatorConvertToItemFrame.origin.x -= rightItemFrame.origin.x
-                            itemDataSource[baseIndex + 1].indicatorConvertToItemFrame = rightIndicatorConvertToItemFrame
+                        //快速滑动翻页，当remainderRatio没有变成0，但是已经翻页了，需要通过下面的判断，触发选中
+                        if abs(progress - CGFloat(selectedIndex)) > 1 {
+                            var targetIndex = baseIndex
+                            if progress < CGFloat(selectedIndex) {
+                                targetIndex = baseIndex + 1
+                            }
+                            scrollSelectItemAt(index: targetIndex)
                         }
+                        if selectedIndex == baseIndex {
+                            scrollingTargetIndex = baseIndex + 1
+                        }else {
+                            scrollingTargetIndex = baseIndex
+                        }
+
+                        dataSource?.refreshItemModel(self, leftItemModel: itemDataSource[baseIndex], rightItemModel: itemDataSource[baseIndex + 1], percent: remainderProgress)
+
+                        for indicator in indicators {
+                            indicator.contentScrollViewDidScroll(model: indicatorParams)
+                            if indicator.isIndicatorConvertToItemFrameEnabled {
+                                var leftIndicatorConvertToItemFrame = indicator.frame
+                                leftIndicatorConvertToItemFrame.origin.x -= leftItemFrame.origin.x
+                                itemDataSource[baseIndex].indicatorConvertToItemFrame = leftIndicatorConvertToItemFrame
+
+                                var rightIndicatorConvertToItemFrame = indicator.frame
+                                rightIndicatorConvertToItemFrame.origin.x -= rightItemFrame.origin.x
+                                itemDataSource[baseIndex + 1].indicatorConvertToItemFrame = rightIndicatorConvertToItemFrame
+                            }
+                        }
+
+                        let leftCell = collectionView.cellForItem(at: IndexPath(item: baseIndex, section: 0)) as? JXSegmentedBaseCell
+                        leftCell?.reloadData(itemModel: itemDataSource[baseIndex], selectedType: .unknown)
+
+                        let rightCell = collectionView.cellForItem(at: IndexPath(item: baseIndex + 1, section: 0)) as? JXSegmentedBaseCell
+                        rightCell?.reloadData(itemModel: itemDataSource[baseIndex + 1], selectedType: .unknown)
+
+                        delegate?.segmentedView(self, scrollingFrom: baseIndex, to: baseIndex + 1, percent: remainderProgress)
                     }
-
-                    let leftCell = collectionView.cellForItem(at: IndexPath(item: baseIndex, section: 0)) as? JXSegmentedBaseCell
-                    leftCell?.reloadData(itemModel: itemDataSource[baseIndex], selectedType: .unknown)
-
-                    let rightCell = collectionView.cellForItem(at: IndexPath(item: baseIndex + 1, section: 0)) as? JXSegmentedBaseCell
-                    rightCell?.reloadData(itemModel: itemDataSource[baseIndex + 1], selectedType: .unknown)
-
-                    delegate?.segmentedView(self, scrollingFrom: baseIndex, to: baseIndex + 1, percent: remainderProgress)
                 }
+                lastContentOffset = contentOffset
             }
-            lastContentOffset = contentOffset
         }
     }
 

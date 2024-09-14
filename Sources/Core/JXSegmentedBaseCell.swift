@@ -16,7 +16,9 @@ open class JXSegmentedBaseCell: UICollectionViewCell, JXSegmentedViewRTLCompatib
     private var selectedAnimationClosureArray = [JXSegmentedCellSelectedAnimationClosure]()
 
     deinit {
-        animator?.stop()
+        MainActor.assumeIsolated {
+            animator?.stop()
+        }
     }
 
     open override func prepareForReuse() {

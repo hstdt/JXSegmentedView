@@ -7,7 +7,7 @@ let package = Package(
     name: "JXSegmentedView",
     // 支持的平台和版本
     platforms: [
-      .iOS(.v9)
+      .iOS(.v13)
     ],
     products: [
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
