@@ -17,6 +17,7 @@ public enum JXPagingListContainerType {
 }
 
 @objc
+@MainActor
 public protocol JXPagingViewListViewDelegate {
     /// 如果列表是VC，就返回VC.view
     /// 如果列表是View，就返回View自己
@@ -46,6 +47,7 @@ public protocol JXPagingViewListViewDelegate {
 }
 
 @objc
+@MainActor
 public protocol JXPagingListContainerViewDataSource {
     /// 返回list的数量
     ///
@@ -75,6 +77,7 @@ public protocol JXPagingListContainerViewDataSource {
     @objc optional func scrollViewClass(in listContainerView: JXPagingListContainerView) -> AnyClass
 }
 
+@MainActor
 @objc protocol JXPagingListContainerViewDelegate {
     @objc optional func listContainerViewDidScroll(_ listContainerView: JXPagingListContainerView)
     @objc optional func listContainerViewWillBeginDragging(_ listContainerView: JXPagingListContainerView)
